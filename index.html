@@ -115,7 +115,6 @@
 
     <script src="https://vjs.zencdn.net/7.20.3/video.min.js"></script>
     <script>
-        // LINK DO NOVO FIREBASE ATUALIZADO ABAIXO
         const FIREBASE = "https://cloneflix-oficial-default-rtdb.firebaseio.com";
         const DB = `${FIREBASE}/usuarios`;
         
@@ -164,7 +163,6 @@
                 const res = await fetch(`${FIREBASE}/config.json`).then(r => r.json());
                 if(res && res.server) {
                     API = res.server;
-                    // Preenche os campos do ADM com o que está no banco
                     document.getElementById('adm-url').value = API.url;
                     document.getElementById('adm-u').value = API.u;
                     document.getElementById('adm-p').value = API.p;
@@ -318,20 +316,6 @@
             document.getElementById('conteudo-principal').innerHTML = html;
         }
 
-        function verMaisHistorico(tipo) {
-            const streams = fullData[tipo];
-            const history = currentLogged.history || {};
-            const continueWatching = [];
-            for(let id in history) {
-                if(history[id].tipo === tipo) {
-                    let item = (tipo === 'series') ? streams.find(s => String(s.series_id) === String(history[id].seriesParentId)) : streams.find(s => String(s.stream_id) === id);
-                    if(item && !continueWatching.some(x => (x.series_id || x.stream_id) === (item.series_id || item.stream_id))) continueWatching.push(item);
-                }
-            }
-            document.getElementById('conteudo-principal').innerHTML = `<div class="row-header" style="padding:15px;"><button onclick="mudarSecao(secaoAtual)" style="background:none;border:none;color:white;font-size:20px;">←</button><span class="row-title">CONTINUAR ASSISTINDO</span></div><div class="grid-view">${continueWatching.map(i => cardHtml(i, tipo)).join('')}</div>`;
-            window.scrollTo(0,0);
-        }
-
         function cardHtml(i, tipo) {
             const id = String(i.stream_id || i.series_id);
             const isFav = (currentLogged.favs || []).some(f => f.id === id);
@@ -403,13 +387,25 @@
 
         function fecharModalEscolha() { document.getElementById('modal-escolha-ep').style.display = 'none'; }
 
+        // --- AJUSTE DOS CANAIS AQUI (REFERÊNCIA DO CÓDIGO 1) ---
         async function play(id, ext, tipo, startTime = 0, seriesParentId = null, seasonNum = null) {
             currentPlayingId = id; currentPlayingType = tipo; currentSeriesParent = seriesParentId; currentSeason = seasonNum;
-            let url = (tipo === 'live') ? `${API.url}/live/${API.u}/${API.p}/${id}.m3u8` : (tipo === 'movie') ? `${API.url}/movie/${API.u}/${API.p}/${id}.${ext||'mp4'}` : `${API.url}/series/${API.u}/${API.p}/${id}.${ext||'mp4'}`;
+            
+            // Lógica do Código 1 para gerar a URL correta
+            let url = (tipo === 'live') 
+                ? `${API.url}/live/${API.u}/${API.p}/${id}.m3u8` 
+                : (tipo === 'movie') 
+                    ? `${API.url}/movie/${API.u}/${API.p}/${id}.${ext||'mp4'}` 
+                    : `${API.url}/series/${API.u}/${API.p}/${id}.${ext||'mp4'}`;
             
             await solicitarWakeLock();
             document.getElementById('player-box').style.display = 'block';
-            player.src({ src: url, type: tipo==='live'?'application/x-mpegURL':'video/mp4' });
+            
+            // Define o tipo de stream: application/x-mpegURL para canais e video/mp4 para o resto
+            player.src({ 
+                src: url, 
+                type: tipo === 'live' ? 'application/x-mpegURL' : 'video/mp4' 
+            });
             
             player.ready(() => { 
                 if(startTime > 0) player.currentTime(startTime); 
@@ -426,12 +422,9 @@
             const time = Math.floor(player.currentTime());
             const duration = player.duration();
             if(!duration || isNaN(duration)) return;
-            
             if(!currentLogged.history) currentLogged.history = {};
             const percent = (time / duration) * 100;
-
             if (time < 10) return;
-
             if (percent >= 90) {
                 if (currentLogged.history[currentPlayingId]) {
                     delete currentLogged.history[currentPlayingId];
@@ -473,13 +466,7 @@
 
         async function resetarTelas(id) {
             if(confirm("Deseja desconectar todos os aparelhos?")) {
-                await fetch(`${DB}/${id}.json`, { 
-                    method: 'PATCH', 
-                    body: JSON.stringify({ 
-                        active_devices: [],
-                        online_count: 0 
-                    }) 
-                });
+                await fetch(`${DB}/${id}.json`, { method: 'PATCH', body: JSON.stringify({ active_devices: [], online_count: 0 }) });
                 alert("Telas liberadas!");
                 abrirADM();
             }
@@ -492,13 +479,7 @@
                     const res = await fetch(`${DB}/${currentLogged.id}.json`).then(r => r.json());
                     let aparelhos = (res && Array.isArray(res.active_devices)) ? res.active_devices : [];
                     aparelhos = aparelhos.filter(id => id !== deviceId);
-                    await fetch(`${DB}/${currentLogged.id}.json`, { 
-                        method: 'PATCH', 
-                        body: JSON.stringify({ 
-                            active_devices: aparelhos,
-                            online_count: aparelhos.length 
-                        }) 
-                    });
+                    await fetch(`${DB}/${currentLogged.id}.json`, { method: 'PATCH', body: JSON.stringify({ active_devices: aparelhos, online_count: aparelhos.length }) });
                 } catch(e) {}
             }
             localStorage.removeItem('clone_creds'); 
@@ -509,21 +490,14 @@
             const id = document.getElementById('edit-id').value;
             const days = parseInt(document.getElementById('new-days').value) || 0;
             const expFinal = days > 0 ? Date.now() + (days * 86400000) : (id ? parseInt(document.getElementById('old-exp').value) : Date.now() + (30 * 86400000));
-            const user = { 
-                user: document.getElementById('new-u').value, pass: document.getElementById('new-p').value, 
-                screens: parseInt(document.getElementById('new-screens').value) || 1, expira: expFinal, status: 'ativo', role: 'client'
-            };
+            const user = { user: document.getElementById('new-u').value, pass: document.getElementById('new-p').value, screens: parseInt(document.getElementById('new-screens').value) || 1, expira: expFinal, status: 'ativo', role: 'client' };
             await fetch(id ? `${DB}/${id}.json` : `${DB}.json`, { method: id?'PATCH':'POST', body: JSON.stringify(user) });
             limparFormADM(); abrirADM();
         }
 
         async function toggleStatus(id, s) { await fetch(`${DB}/${id}.json`, { method: 'PATCH', body: JSON.stringify({ status: s==='bloqueado'?'ativo':'bloqueado' }) }); abrirADM(); }
         async function excluirUser(id) { if(confirm("Excluir?")) { await fetch(`${DB}/${id}.json`, { method: 'DELETE' }); abrirADM(); } }
-        function prepararEdicao(id, u, p, s, exp) { 
-            document.getElementById('edit-id').value = id; document.getElementById('new-u').value = u; 
-            document.getElementById('new-p').value = p; document.getElementById('new-screens').value = s; 
-            document.getElementById('old-exp').value = exp; document.getElementById('btn-save-adm').innerText = "ATUALIZAR";
-        }
+        function prepararEdicao(id, u, p, s, exp) { document.getElementById('edit-id').value = id; document.getElementById('new-u').value = u; document.getElementById('new-p').value = p; document.getElementById('new-screens').value = s; document.getElementById('old-exp').value = exp; document.getElementById('btn-save-adm').innerText = "ATUALIZAR"; }
         function limparFormADM() { document.getElementById('edit-id').value = ""; document.getElementById('new-u').value = ""; document.getElementById('new-p').value = ""; document.getElementById('btn-save-adm').innerText = "SALVAR CLIENTE"; }
         function executarBusca(q) { if(!q) return mudarSecao(secaoAtual); const res = fullData[secaoAtual].filter(i => i.name.toLowerCase().includes(q.toLowerCase())).slice(0, 40); document.getElementById('conteudo-principal').innerHTML = `<div class="grid-view">${res.map(i => cardHtml(i, secaoAtual)).join('')}</div>`; }
         async function toggleFav(event, id, tipo, name, img) { event.stopPropagation(); let f = currentLogged.favs || []; const idx = f.findIndex(x => x.id === String(id)); if(idx > -1) { f.splice(idx, 1); event.target.classList.remove('active'); } else { f.push({id: String(id), tipo, name, img}); event.target.classList.add('active'); } currentLogged.favs = f; await fetch(`${DB}/${currentLogged.id}/favs.json`, { method: 'PUT', body: JSON.stringify(f) }); }
