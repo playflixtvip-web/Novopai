@@ -108,7 +108,6 @@
     </div>
 
     <div id="modal-detalhes" class="modal"><span class="close-modal" onclick="fecharModais()">✕</span><div id="detalhes-body" style="text-align:center; max-width:500px; margin:40px auto; padding-bottom:50px;"></div></div>
-    
     <div id="modal-escolha-ep" class="modal" style="z-index: 1100; background: rgba(0,0,0,0.95);"><span class="close-modal" onclick="fecharModalEscolha()">✕</span><div id="escolha-body" style="text-align:center; margin-top:30vh; padding:20px;"></div></div>
 
     <div id="player-box"><span class="close-modal" onclick="fecharPlayer()" style="left:15px; top:15px;">✕</span><video id="vid" class="video-js vjs-fill vjs-big-play-centered" controls></video></div>
@@ -160,9 +159,9 @@
 
         async function carregarConfigServidor() {
             try {
-                const res = await fetch(`${FIREBASE}/config.json`).then(r => r.json());
-                if(res && res.server) {
-                    API = res.server;
+                const res = await fetch(`${FIREBASE}/config/server.json`).then(r => r.json());
+                if(res) {
+                    API = res;
                     document.getElementById('adm-url').value = API.url;
                     document.getElementById('adm-u').value = API.u;
                     document.getElementById('adm-p').value = API.p;
@@ -387,11 +386,10 @@
 
         function fecharModalEscolha() { document.getElementById('modal-escolha-ep').style.display = 'none'; }
 
-        // --- AJUSTE DOS CANAIS AQUI (REFERÊNCIA DO CÓDIGO 1) ---
         async function play(id, ext, tipo, startTime = 0, seriesParentId = null, seasonNum = null) {
             currentPlayingId = id; currentPlayingType = tipo; currentSeriesParent = seriesParentId; currentSeason = seasonNum;
             
-            // Lógica do Código 1 para gerar a URL correta
+            // Formatação correta para Canais (m3u8) e VOD (mp4/mkv)
             let url = (tipo === 'live') 
                 ? `${API.url}/live/${API.u}/${API.p}/${id}.m3u8` 
                 : (tipo === 'movie') 
@@ -401,7 +399,6 @@
             await solicitarWakeLock();
             document.getElementById('player-box').style.display = 'block';
             
-            // Define o tipo de stream: application/x-mpegURL para canais e video/mp4 para o resto
             player.src({ 
                 src: url, 
                 type: tipo === 'live' ? 'application/x-mpegURL' : 'video/mp4' 
