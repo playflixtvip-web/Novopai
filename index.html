@@ -73,11 +73,10 @@
                 <div id="welcome-msg" class="welcome-center"></div>
             </header>
             <div class="search-container">
-                <input type="text" id="main-search" class="search-input" placeholder="Pesquisar conteúdo..." oninput="executarBusca(this.value)">
+                <input type="text" id="main-search" class="search-input" placeholder="Pesquisar filmes ou séries..." oninput="executarBusca(this.value)">
             </div>
             <div class="secao-container">
-                <button class="btn-secao active" onclick="mudarSecao('live', this)">CANAIS</button>
-                <button class="btn-secao" onclick="mudarSecao('movie', this)">FILMES</button>
+                <button class="btn-secao active" onclick="mudarSecao('movie', this)">FILMES</button>
                 <button class="btn-secao" onclick="mudarSecao('series', this)">SÉRIES</button>
                 <button class="btn-secao" onclick="mostrarFavoritos(this)" style="color:var(--yellow)">★ MINHA LISTA</button>
             </div>
@@ -97,7 +96,8 @@
         </div>
         <div id="adm-form" style="background:#111; padding:15px; border-radius:8px; margin-bottom:20px; border:1px solid #444;">
             <h4 style="margin:0 0 10px 0; font-size:12px;">GERENCIAR ACESSO</h4>
-            <input type="hidden" id="edit-id"><input type="hidden" id="old-exp">
+            <input type="hidden" id="edit-id">
+            <input type="hidden" id="old-exp">
             <input type="text" id="new-u" placeholder="Login" class="input-adm">
             <input type="text" id="new-p" placeholder="Senha" class="input-adm">
             <input type="number" id="new-days" placeholder="Dias de acesso" class="input-adm">
@@ -108,6 +108,7 @@
     </div>
 
     <div id="modal-detalhes" class="modal"><span class="close-modal" onclick="fecharModais()">✕</span><div id="detalhes-body" style="text-align:center; max-width:500px; margin:40px auto; padding-bottom:50px;"></div></div>
+    
     <div id="modal-escolha-ep" class="modal" style="z-index: 1100; background: rgba(0,0,0,0.95);"><span class="close-modal" onclick="fecharModalEscolha()">✕</span><div id="escolha-body" style="text-align:center; margin-top:30vh; padding:20px;"></div></div>
 
     <div id="player-box"><span class="close-modal" onclick="fecharPlayer()" style="left:15px; top:15px;">✕</span><video id="vid" class="video-js vjs-fill vjs-big-play-centered" controls></video></div>
@@ -120,13 +121,10 @@
         var API = { url: "http://lunnabr1.site", u: "35215954", p: "54642513" }; 
         
         var player = videojs('vid');
-        var fullData = {}; var currentLogged = {}; var secaoAtual = 'live'; var saveInterval = null;
-        var relogioInterval = null;
-        var wakeLock = null; 
-        var currentPlayingId = null;
-        var currentPlayingType = null;
-        var currentSeriesParent = null;
-        var currentSeason = null;
+        var fullData = {}; var currentLogged = {}; var secaoAtual = 'movie'; 
+        var saveInterval = null; var relogioInterval = null; var wakeLock = null; 
+        var currentPlayingId = null; var currentPlayingType = null;
+        var currentSeriesParent = null; var currentSeason = null;
         var monitorSessaoInterval = null;
 
         function obterDeviceId() {
@@ -149,13 +147,8 @@
             }
         };
 
-        async function solicitarWakeLock() {
-            try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
-        }
-
-        function liberarWakeLock() {
-            if (wakeLock !== null) { wakeLock.release().then(() => { wakeLock = null; }); }
-        }
+        async function solicitarWakeLock() { try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {} }
+        function liberarWakeLock() { if (wakeLock !== null) { wakeLock.release().then(() => { wakeLock = null; }); } }
 
         async function carregarConfigServidor() {
             try {
@@ -170,14 +163,10 @@
         }
 
         async function salvarConfigServidor() {
-            const novaConfig = {
-                url: document.getElementById('adm-url').value,
-                u: document.getElementById('adm-u').value,
-                p: document.getElementById('adm-p').value
-            };
+            const novaConfig = { url: document.getElementById('adm-url').value, u: document.getElementById('adm-u').value, p: document.getElementById('adm-p').value };
             await fetch(`${FIREBASE}/config/server.json`, { method: 'PUT', body: JSON.stringify(novaConfig) });
             API = novaConfig;
-            alert("Configurações do Servidor atualizadas!");
+            alert("Configurações atualizadas!");
         }
 
         async function autenticar(isAuto = false) {
@@ -185,9 +174,7 @@
             const p = document.getElementById('pass').value.trim();
             const statusDiv = document.getElementById('login-status');
             const deviceId = obterDeviceId();
-
             if(!u || !p) return;
-
             statusDiv.innerText = "Verificando...";
             try {
                 const res = await fetch(`${DB}.json`).then(r => r.json());
@@ -196,60 +183,43 @@
                     const user = res[id];
                     if(user.user === u && user.pass === p) {
                         found = true;
-
-                        if(user.role === 'admin') {
-                            currentLogged = user;
-                            currentLogged.adm = true;
-                            currentLogged.id = id;
-                        } else {
-                            if(user.status === 'bloqueado' || user.status === 'suspenso') {
-                                statusDiv.innerText = "ACESSO BLOQUEADO!";
-                                return alert("Sua conta está BLOQUEADA ou SUSPENSA!");
-                            }
-                            if(user.expira && user.expira < Date.now()) {
-                                statusDiv.innerText = "ACESSO VENCIDO!";
-                                return alert("Seu acesso VENCEU!");
-                            }
-
-                            let aparelhos = Array.isArray(user.active_devices) ? user.active_devices : [];
-                            if (!aparelhos.includes(deviceId)) {
-                                if (aparelhos.length >= (user.screens || 1)) {
-                                    statusDiv.innerText = "LIMITE DE TELAS!";
-                                    return alert("Limite de telas atingido!");
-                                }
-                                aparelhos.push(deviceId);
-                                await fetch(`${DB}/${id}.json`, { 
-                                    method: 'PATCH', 
-                                    body: JSON.stringify({ active_devices: aparelhos, online_count: aparelhos.length }) 
-                                });
-                            }
-                            currentLogged = user; 
-                            currentLogged.id = id;
-                            currentLogged.active_devices = aparelhos;
+                        if(user.status === 'bloqueado' || user.status === 'suspenso') {
+                            statusDiv.innerText = "ACESSO BLOQUEADO!";
+                            return alert("Acesso bloqueado!");
                         }
-                        
+                        if(user.expira && user.expira < Date.now()) {
+                            statusDiv.innerText = "ACESSO VENCIDO!";
+                            return alert("Seu acesso venceu!");
+                        }
+                        let aparelhos = Array.isArray(user.active_devices) ? user.active_devices : [];
+                        if (!aparelhos.includes(deviceId)) {
+                            if (aparelhos.length >= (user.screens || 1)) {
+                                statusDiv.innerText = "LIMITE DE TELAS!";
+                                return alert("Limite de telas atingido!");
+                            }
+                            aparelhos.push(deviceId);
+                            await fetch(`${DB}/${id}.json`, { method: 'PATCH', body: JSON.stringify({ active_devices: aparelhos, online_count: aparelhos.length }) });
+                        }
+                        currentLogged = user; currentLogged.id = id;
                         localStorage.setItem('clone_creds', JSON.stringify({u, p}));
                         entrar(); break;
                     }
                 }
-                if(!found && !isAuto) statusDiv.innerText = "Usuário ou senha incorretos!";
-            } catch(e) { statusDiv.innerText = "Erro ao conectar."; }
+                if(!found && !isAuto) statusDiv.innerText = "Credenciais inválidas!";
+            } catch(e) { statusDiv.innerText = "Erro de conexão."; }
         }
 
         function entrar() { 
             document.getElementById('login-ui').style.display='none'; 
             document.getElementById('app-ui').style.display='block'; 
-            if(currentLogged.adm) document.getElementById('adm-btn').style.display='block';
-            const venc = currentLogged.role === 'admin' ? "VITALÍCIO" : (currentLogged.expira ? new Date(currentLogged.expira).toLocaleDateString() : "Vitalício");
-            
+            if(currentLogged.role === 'admin' || currentLogged.adm) document.getElementById('adm-btn').style.display='block';
+            const venc = currentLogged.expira ? new Date(currentLogged.expira).toLocaleDateString() : "Vitalício";
             if(relogioInterval) clearInterval(relogioInterval);
             atualizarRelogio(venc);
             relogioInterval = setInterval(() => atualizarRelogio(venc), 1000);
-
             if(monitorSessaoInterval) clearInterval(monitorSessaoInterval);
             monitorSessaoInterval = setInterval(verificarSessaoAtiva, 20000);
-
-            mudarSecao('live'); 
+            mudarSecao('movie'); 
         }
 
         async function verificarSessaoAtiva() {
@@ -258,32 +228,23 @@
                 const res = await fetch(`${DB}/${currentLogged.id}.json`).then(r => r.json());
                 const deviceId = obterDeviceId();
                 if (!res || res.status === 'bloqueado' || !res.active_devices || !res.active_devices.includes(deviceId)) {
-                    forceLogout();
+                    localStorage.removeItem('clone_creds'); location.reload();
                 }
             } catch (e) {}
         }
 
-        function forceLogout() {
-            localStorage.removeItem('clone_creds');
-            location.reload();
-        }
-
         function atualizarRelogio(vencimento) {
             const agora = new Date();
-            const diasSemana = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
-            document.getElementById('welcome-msg').innerHTML = `
-                Olá, <b>${currentLogged.user}</b> | Vence em: <span>${vencimento}</span><br>
-                <small style="color:#888; font-size:10px;">${diasSemana[agora.getDay()]}, ${agora.toLocaleDateString()} - ${agora.toLocaleTimeString()}</small>
-            `;
+            document.getElementById('welcome-msg').innerHTML = `Olá, <b>${currentLogged.user}</b> | Vence em: <span>${vencimento}</span><br><small style="color:#888;">${agora.toLocaleDateString()} - ${agora.toLocaleTimeString()}</small>`;
         }
 
         async function mudarSecao(tipo, btn) {
             secaoAtual = tipo;
             if(btn) { document.querySelectorAll('.btn-secao').forEach(b => b.classList.remove('active')); btn.classList.add('active'); }
             const principal = document.getElementById('conteudo-principal');
-            principal.innerHTML = '<p style="text-align:center;padding:30px;color:var(--red);">Carregando biblioteca...</p>';
-            const catAct = tipo==='live'?'get_live_categories':tipo==='movie'?'get_vod_categories':'get_series_categories';
-            const streamAct = tipo==='live'?'get_live_streams':tipo==='movie'?'get_vod_streams':'get_series';
+            principal.innerHTML = '<p style="text-align:center;padding:30px;color:var(--red);">Buscando catálogo...</p>';
+            const catAct = tipo==='movie'?'get_vod_categories':'get_series_categories';
+            const streamAct = tipo==='movie'?'get_vod_streams':'get_series';
             try {
                 const cats = await fetch(`${API.url}/player_api.php?username=${API.u}&password=${API.p}&action=${catAct}`).then(r => r.json());
                 const streams = await fetch(`${API.url}/player_api.php?username=${API.u}&password=${API.p}&action=${streamAct}`).then(r => r.json());
@@ -300,13 +261,7 @@
                 }
             }
             if(continueWatching.length > 0) {
-                html += `<div class="row">
-                    <div class="row-header">
-                        <span class="row-title" style="color:var(--yellow)">CONTINUAR ASSISTINDO</span>
-                        <button class="btn-ver-mais" onclick="verMaisHistorico('${tipo}')">VER MAIS</button>
-                    </div>
-                    <div class="shelf">${continueWatching.slice(0, 8).map(i => cardHtml(i, tipo)).join('')}</div>
-                </div>`;
+                html += `<div class="row"><div class="row-header"><span class="row-title" style="color:var(--yellow)">CONTINUAR ASSISTINDO</span></div><div class="shelf">${continueWatching.slice(0, 8).map(i => cardHtml(i, tipo)).join('')}</div></div>`;
             }
             cats.slice(0, 30).forEach(cat => {
                 const itens = streams.filter(s => s.category_id === cat.category_id);
@@ -337,7 +292,6 @@
         }
 
         async function abrirConteudo(id, tipo) { 
-            if(tipo === 'live') return play(id, 'm3u8', 'live'); 
             const res = await fetch(`${API.url}/player_api.php?username=${API.u}&password=${API.p}&action=${tipo==='series'?'get_series_info':'get_vod_info'}&${tipo==='series'?'series_id':'vod_id'}=${id}`).then(r => r.json()); 
             const info = res.info || res.movie_data; 
             let html = `<img src="${info.cover || info.movie_image}" style="width:160px; border-radius:8px;"><h2>${info.name}</h2><p style="font-size:12px; color:#aaa; padding:0 15px;">${info.plot || ''}</p>`;
@@ -345,9 +299,7 @@
                 window.tempEps = res.episodes;
                 const hist = Object.values(currentLogged.history || {}).find(h => String(h.seriesParentId) === id);
                 const lastS = hist ? hist.season : Object.keys(res.episodes)[0];
-                html += `<select id="season-select" class="input-adm" onchange="carregarEps(this.value, '${id}')">
-                    ${Object.keys(res.episodes).map(s => `<option value="${s}" ${s==lastS?'selected':''}>Temporada ${s}</option>`).join('')}
-                </select><div id="eps-box" style="margin-top:10px; max-height:300px; overflow-y:auto;"></div>`; 
+                html += `<select id="season-select" class="input-adm" onchange="carregarEps(this.value, '${id}')">${Object.keys(res.episodes).map(s => `<option value="${s}" ${s==lastS?'selected':''}>Temporada ${s}</option>`).join('')}</select><div id="eps-box" style="margin-top:10px; max-height:300px; overflow-y:auto;"></div>`; 
                 setTimeout(() => carregarEps(lastS, id), 100);
             } else {
                 const hist = (currentLogged.history || {})[id];
@@ -355,9 +307,7 @@
                 if(hist) {
                     html += `<button onclick="play('${id}','${ext}','movie', ${hist.time})" style="width:90%; padding:15px; background:var(--red); color:#fff; border:none; font-weight:bold; border-radius:5px; margin-bottom:10px;">RETOMAR EM ${Math.floor(hist.time/60)}m</button>
                              <button onclick="play('${id}','${ext}','movie', 0)" style="width:90%; padding:10px; background:#333; color:#fff; border:none; border-radius:5px;">DO INÍCIO</button>`;
-                } else {
-                    html += `<button onclick="play('${id}','${ext}','movie')" style="width:90%; padding:15px; background:var(--red); color:#fff; border:none; font-weight:bold; border-radius:5px;">ASSISTIR AGORA</button>`;
-                }
+                } else html += `<button onclick="play('${id}','${ext}','movie')" style="width:90%; padding:15px; background:var(--red); color:#fff; border:none; font-weight:bold; border-radius:5px;">ASSISTIR AGORA</button>`;
             } 
             document.getElementById('detalhes-body').innerHTML = html; document.getElementById('modal-detalhes').style.display = 'block'; 
         }
@@ -369,7 +319,6 @@
                 const hist = (currentLogged.history || {})[epId];
                 return `<div class="ep-item ${hist?'highlight':''}" onclick="prepararEp('${epId}','${e.container_extension||'mp4'}','${seriesId}','${s}','${e.title.replace(/'/g, "")}')">
                     <span style="font-size:12px; font-weight:bold;">E${e.episode_num} - ${e.title}</span>
-                    ${hist ? `<br><span style="font-size:9px; color:var(--yellow)">PAROU EM ${Math.floor(hist.time/60)}m</span>` : ''}
                 </div>`;
             }).join(''); 
         }
@@ -388,56 +337,35 @@
 
         async function play(id, ext, tipo, startTime = 0, seriesParentId = null, seasonNum = null) {
             currentPlayingId = id; currentPlayingType = tipo; currentSeriesParent = seriesParentId; currentSeason = seasonNum;
-            
-            // Formatação correta para Canais (m3u8) e VOD (mp4/mkv)
-            let url = (tipo === 'live') 
-                ? `${API.url}/live/${API.u}/${API.p}/${id}.m3u8` 
-                : (tipo === 'movie') 
-                    ? `${API.url}/movie/${API.u}/${API.p}/${id}.${ext||'mp4'}` 
-                    : `${API.url}/series/${API.u}/${API.p}/${id}.${ext||'mp4'}`;
-            
+            let url = (tipo === 'movie') ? `${API.url}/movie/${API.u}/${API.p}/${id}.${ext||'mp4'}` : `${API.url}/series/${API.u}/${API.p}/${id}.${ext||'mp4'}`;
             await solicitarWakeLock();
             document.getElementById('player-box').style.display = 'block';
-            
-            player.src({ 
-                src: url, 
-                type: tipo === 'live' ? 'application/x-mpegURL' : 'video/mp4' 
-            });
-            
+            player.src({ src: url, type: 'video/mp4' });
             player.ready(() => { 
                 if(startTime > 0) player.currentTime(startTime); 
                 player.play(); 
-                if(tipo !== 'live') {
-                    if(saveInterval) clearInterval(saveInterval);
-                    saveInterval = setInterval(() => salvarProgressoFirebase(), 8000);
-                }
+                if(saveInterval) clearInterval(saveInterval);
+                saveInterval = setInterval(salvarProgressoFirebase, 8000);
             });
         }
 
         async function salvarProgressoFirebase() {
-            if(!currentPlayingId || currentPlayingType === 'live') return;
+            if(!currentPlayingId) return;
             const time = Math.floor(player.currentTime());
             const duration = player.duration();
             if(!duration || isNaN(duration)) return;
             if(!currentLogged.history) currentLogged.history = {};
             const percent = (time / duration) * 100;
             if (time < 10) return;
-            if (percent >= 90) {
-                if (currentLogged.history[currentPlayingId]) {
-                    delete currentLogged.history[currentPlayingId];
-                    await fetch(`${DB}/${currentLogged.id}/history.json`, { method: 'PUT', body: JSON.stringify(currentLogged.history) });
-                }
-            } else {
-                currentLogged.history[currentPlayingId] = { time, tipo: currentPlayingType, seriesParentId: currentSeriesParent, season: currentSeason };
-                await fetch(`${DB}/${currentLogged.id}/history.json`, { method: 'PUT', body: JSON.stringify(currentLogged.history) });
-            }
+            if (percent >= 90) { delete currentLogged.history[currentPlayingId]; } 
+            else { currentLogged.history[currentPlayingId] = { time, tipo: currentPlayingType, seriesParentId: currentSeriesParent, season: currentSeason }; }
+            await fetch(`${DB}/${currentLogged.id}/history.json`, { method: 'PUT', body: JSON.stringify(currentLogged.history) });
         }
 
         async function fecharPlayer() { 
-            if(currentPlayingType !== 'live') await salvarProgressoFirebase();
+            await salvarProgressoFirebase();
             if(saveInterval) clearInterval(saveInterval);
-            player.pause(); 
-            liberarWakeLock();
+            player.pause(); liberarWakeLock();
             document.getElementById('player-box').style.display='none'; 
             mudarSecao(secaoAtual);
         }
@@ -449,40 +377,20 @@
             for(let id in res) {
                 const u = res[id];
                 const ativos = Array.isArray(u.active_devices) ? u.active_devices.length : 0;
-                html += `<div class="user-card">
-                    <b>${u.user} (${u.pass})</b> <span style="float:right; color:${u.status==='bloqueado'?'red':'green'}">${u.status||'ativo'}</span><br>
+                html += `<div class="user-card"><b>${u.user}</b> <span style="float:right; color:${u.status==='bloqueado'?'red':'green'}">${u.status||'ativo'}</span><br>
                     Telas: ${ativos}/${u.screens||1} | Vence: ${u.expira?new Date(u.expira).toLocaleDateString():'N/A'}<br><br>
                     <button class="btn-adm" style="background:#2980b9" onclick="prepararEdicao('${id}','${u.user}','${u.pass}','${u.screens}','${u.expira}')">Editar</button>
                     <button class="btn-adm" style="background:#8e44ad" onclick="resetarTelas('${id}')">Reset Telas</button>
                     <button class="btn-adm" style="background:#d35400" onclick="toggleStatus('${id}','${u.status}')">Bloq/Lib</button>
-                    <button class="btn-adm" style="background:#c0392b" onclick="excluirUser('${id}')">Excluir</button>
-                </div>`;
+                    <button class="btn-adm" style="background:#c0392b" onclick="excluirUser('${id}')">Excluir</button></div>`;
             }
             document.getElementById('lista-usuarios-adm').innerHTML = html;
         }
 
-        async function resetarTelas(id) {
-            if(confirm("Deseja desconectar todos os aparelhos?")) {
-                await fetch(`${DB}/${id}.json`, { method: 'PATCH', body: JSON.stringify({ active_devices: [], online_count: 0 }) });
-                alert("Telas liberadas!");
-                abrirADM();
-            }
-        }
-
-        async function logout() {
-            if (currentLogged && currentLogged.role !== "admin") {
-                try {
-                    const deviceId = obterDeviceId();
-                    const res = await fetch(`${DB}/${currentLogged.id}.json`).then(r => r.json());
-                    let aparelhos = (res && Array.isArray(res.active_devices)) ? res.active_devices : [];
-                    aparelhos = aparelhos.filter(id => id !== deviceId);
-                    await fetch(`${DB}/${currentLogged.id}.json`, { method: 'PATCH', body: JSON.stringify({ active_devices: aparelhos, online_count: aparelhos.length }) });
-                } catch(e) {}
-            }
-            localStorage.removeItem('clone_creds'); 
-            location.reload(); 
-        }
-
+        async function resetarTelas(id) { if(confirm("Desconectar todos?")) { await fetch(`${DB}/${id}.json`, { method: 'PATCH', body: JSON.stringify({ active_devices: [], online_count: 0 }) }); abrirADM(); } }
+        async function toggleStatus(id, s) { await fetch(`${DB}/${id}.json`, { method: 'PATCH', body: JSON.stringify({ status: s==='bloqueado'?'ativo':'bloqueado' }) }); abrirADM(); }
+        async function excluirUser(id) { if(confirm("Excluir?")) { await fetch(`${DB}/${id}.json`, { method: 'DELETE' }); abrirADM(); } }
+        function prepararEdicao(id, u, p, s, exp) { document.getElementById('edit-id').value = id; document.getElementById('new-u').value = u; document.getElementById('new-p').value = p; document.getElementById('new-screens').value = s; document.getElementById('old-exp').value = exp; document.getElementById('btn-save-adm').innerText = "ATUALIZAR"; }
         async function salvarUsuario() {
             const id = document.getElementById('edit-id').value;
             const days = parseInt(document.getElementById('new-days').value) || 0;
@@ -491,11 +399,8 @@
             await fetch(id ? `${DB}/${id}.json` : `${DB}.json`, { method: id?'PATCH':'POST', body: JSON.stringify(user) });
             limparFormADM(); abrirADM();
         }
-
-        async function toggleStatus(id, s) { await fetch(`${DB}/${id}.json`, { method: 'PATCH', body: JSON.stringify({ status: s==='bloqueado'?'ativo':'bloqueado' }) }); abrirADM(); }
-        async function excluirUser(id) { if(confirm("Excluir?")) { await fetch(`${DB}/${id}.json`, { method: 'DELETE' }); abrirADM(); } }
-        function prepararEdicao(id, u, p, s, exp) { document.getElementById('edit-id').value = id; document.getElementById('new-u').value = u; document.getElementById('new-p').value = p; document.getElementById('new-screens').value = s; document.getElementById('old-exp').value = exp; document.getElementById('btn-save-adm').innerText = "ATUALIZAR"; }
         function limparFormADM() { document.getElementById('edit-id').value = ""; document.getElementById('new-u').value = ""; document.getElementById('new-p').value = ""; document.getElementById('btn-save-adm').innerText = "SALVAR CLIENTE"; }
+        function logout() { localStorage.removeItem('clone_creds'); location.reload(); }
         function executarBusca(q) { if(!q) return mudarSecao(secaoAtual); const res = fullData[secaoAtual].filter(i => i.name.toLowerCase().includes(q.toLowerCase())).slice(0, 40); document.getElementById('conteudo-principal').innerHTML = `<div class="grid-view">${res.map(i => cardHtml(i, secaoAtual)).join('')}</div>`; }
         async function toggleFav(event, id, tipo, name, img) { event.stopPropagation(); let f = currentLogged.favs || []; const idx = f.findIndex(x => x.id === String(id)); if(idx > -1) { f.splice(idx, 1); event.target.classList.remove('active'); } else { f.push({id: String(id), tipo, name, img}); event.target.classList.add('active'); } currentLogged.favs = f; await fetch(`${DB}/${currentLogged.id}/favs.json`, { method: 'PUT', body: JSON.stringify(f) }); }
         function mostrarFavoritos(btn) { document.querySelectorAll('.btn-secao').forEach(b => b.classList.remove('active')); btn.classList.add('active'); const f = currentLogged.favs || []; document.getElementById('conteudo-principal').innerHTML = `<div class="grid-view">${f.map(x => cardHtml({stream_id: x.id, series_id: x.id, name: x.name, img: x.img}, x.tipo)).join('')}</div>`; }
