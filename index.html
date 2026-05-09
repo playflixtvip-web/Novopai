@@ -42,6 +42,42 @@
         .btn-adm { border: none; padding: 8px; border-radius: 4px; font-size: 9px; font-weight: bold; color: #fff; cursor: pointer; }
         .input-adm { width: 100%; padding: 10px; margin-bottom: 10px; background: #222; border: 1px solid #333; color: #fff; border-radius: 5px; box-sizing: border-box; }
         #player-box { display: none; position: fixed; inset: 0; background: #000; z-index: 2000; }
+        
+        /* ESTILOS DOS BOTÕES DE PULAR */
+        .vjs-custom-jump-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            gap: 60px;
+            z-index: 10;
+            pointer-events: none;
+            width: 100%;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .vjs-user-active .vjs-custom-jump-container { opacity: 1; }
+        .jump-btn-inner {
+            pointer-events: auto;
+            background: rgba(0,0,0,0.6);
+            border: 2px solid rgba(255,255,255,0.2);
+            color: #fff;
+            width: 65px;
+            height: 65px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .jump-btn-inner:active { transform: scale(0.9); background: var(--red); }
+        .jump-btn-inner span { font-size: 24px; }
+
         .ep-item { padding: 15px; border-bottom: 1px solid #222; text-align: left; background: #111; margin-bottom: 5px; border-radius: 5px; cursor: pointer; }
         .ep-item.highlight { border-left: 4px solid var(--red); background: #1a0a0a; }
     </style>
@@ -111,18 +147,33 @@
     
     <div id="modal-escolha-ep" class="modal" style="z-index: 1100; background: rgba(0,0,0,0.95);"><span class="close-modal" onclick="fecharModalEscolha()">✕</span><div id="escolha-body" style="text-align:center; margin-top:30vh; padding:20px;"></div></div>
 
-    <div id="player-box"><span class="close-modal" onclick="fecharPlayer()" style="left:15px; top:15px;">✕</span><video id="vid" class="video-js vjs-fill vjs-big-play-centered" controls></video></div>
+    <div id="player-box">
+        <span class="close-modal" onclick="fecharPlayer()" style="left:15px; top:15px; font-size: 35px; z-index: 2005;">✕</span>
+        <video id="vid" class="video-js vjs-fill vjs-big-play-centered" controls></video>
+    </div>
 
     <script src="https://vjs.zencdn.net/7.20.3/video.min.js"></script>
     <script>
-        // LINK DO NOVO FIREBASE ATUALIZADO ABAIXO
         const FIREBASE = "https://cloneflix-oficial-default-rtdb.firebaseio.com";
         const DB = `${FIREBASE}/usuarios`;
         
         var API = { url: "http://lunnabr1.site", u: "35215954", p: "54642513" }; 
         
         var player = videojs('vid');
-        var fullData = {}; var currentLogged = {}; var secaoAtual = 'live'; var saveInterval = null;
+
+        // INJEÇÃO DOS BOTÕES NO PLAYER
+        const jumpContainer = document.createElement('div');
+        jumpContainer.className = 'vjs-custom-jump-container';
+        jumpContainer.id = 'jump-btns-ui';
+        jumpContainer.innerHTML = `
+            <button class="jump-btn-inner" onclick="pularTempo(-10)"><span>↺</span>10s</button>
+            <button class="jump-btn-inner" onclick="pularTempo(10)"><span>↻</span>10s</button>
+        `;
+        player.el().appendChild(jumpContainer);
+
+        var fullData = {}; 
+        var cacheCategorias = {}; 
+        var currentLogged = {}; var secaoAtual = 'live'; var saveInterval = null;
         var relogioInterval = null;
         var wakeLock = null; 
         var currentPlayingId = null;
@@ -164,7 +215,6 @@
                 const res = await fetch(`${FIREBASE}/config.json`).then(r => r.json());
                 if(res && res.server) {
                     API = res.server;
-                    // Preenche os campos do ADM com o que está no banco
                     document.getElementById('adm-url').value = API.url;
                     document.getElementById('adm-u').value = API.u;
                     document.getElementById('adm-p').value = API.p;
@@ -180,6 +230,8 @@
             };
             await fetch(`${FIREBASE}/config/server.json`, { method: 'PUT', body: JSON.stringify(novaConfig) });
             API = novaConfig;
+            fullData = {};
+            cacheCategorias = {};
             alert("Configurações do Servidor atualizadas!");
         }
 
@@ -283,6 +335,12 @@
         async function mudarSecao(tipo, btn) {
             secaoAtual = tipo;
             if(btn) { document.querySelectorAll('.btn-secao').forEach(b => b.classList.remove('active')); btn.classList.add('active'); }
+            
+            if(fullData[tipo] && cacheCategorias[tipo]) {
+                renderizar(cacheCategorias[tipo], fullData[tipo], tipo);
+                return;
+            }
+
             const principal = document.getElementById('conteudo-principal');
             principal.innerHTML = '<p style="text-align:center;padding:30px;color:var(--red);">Carregando biblioteca...</p>';
             const catAct = tipo==='live'?'get_live_categories':tipo==='movie'?'get_vod_categories':'get_series_categories';
@@ -290,7 +348,11 @@
             try {
                 const cats = await fetch(`${API.url}/player_api.php?username=${API.u}&password=${API.p}&action=${catAct}`).then(r => r.json());
                 const streams = await fetch(`${API.url}/player_api.php?username=${API.u}&password=${API.p}&action=${streamAct}`).then(r => r.json());
-                fullData[tipo] = streams; renderizar(cats, streams, tipo);
+                
+                fullData[tipo] = streams; 
+                cacheCategorias[tipo] = cats;
+                
+                renderizar(cats, streams, tipo);
             } catch(e) { principal.innerHTML = '<p style="text-align:center;">Erro ao carregar IPTV.</p>'; }
         }
 
@@ -311,7 +373,8 @@
                     <div class="shelf">${continueWatching.slice(0, 8).map(i => cardHtml(i, tipo)).join('')}</div>
                 </div>`;
             }
-            cats.slice(0, 30).forEach(cat => {
+
+            cats.forEach(cat => {
                 const itens = streams.filter(s => s.category_id === cat.category_id);
                 if(itens.length > 0) html += `<div class="row"><div class="row-header"><span class="row-title">${cat.category_name}</span><button class="btn-ver-mais" onclick="verMais('${cat.category_id}', '${cat.category_name}')">VER MAIS</button></div><div class="shelf">${itens.slice(0, 8).map(i => cardHtml(i, tipo)).join('')}</div></div>`;
             });
@@ -407,6 +470,9 @@
             currentPlayingId = id; currentPlayingType = tipo; currentSeriesParent = seriesParentId; currentSeason = seasonNum;
             let url = (tipo === 'live') ? `${API.url}/live/${API.u}/${API.p}/${id}.m3u8` : (tipo === 'movie') ? `${API.url}/movie/${API.u}/${API.p}/${id}.${ext||'mp4'}` : `${API.url}/series/${API.u}/${API.p}/${id}.${ext||'mp4'}`;
             
+            // MOSTRAR/ESCONDER BOTÕES DE PULAR SE FOR LIVE
+            document.getElementById('jump-btns-ui').style.visibility = (tipo === 'live') ? 'hidden' : 'visible';
+
             await solicitarWakeLock();
             document.getElementById('player-box').style.display = 'block';
             player.src({ src: url, type: tipo==='live'?'application/x-mpegURL':'video/mp4' });
@@ -421,18 +487,23 @@
             });
         }
 
+        // FUNÇÃO DE PULAR TEMPO
+        function pularTempo(segundos) {
+            if(!player) return;
+            let tempoAtual = player.currentTime();
+            player.currentTime(tempoAtual + segundos);
+            player.userActive(true); // Mantém controles visíveis
+        }
+
         async function salvarProgressoFirebase() {
             if(!currentPlayingId || currentPlayingType === 'live') return;
             const time = Math.floor(player.currentTime());
             const duration = player.duration();
             if(!duration || isNaN(duration)) return;
-            
             if(!currentLogged.history) currentLogged.history = {};
             const percent = (time / duration) * 100;
 
-            if (time < 10) return;
-
-            if (percent >= 90) {
+            if (time < 10 || percent >= 90) {
                 if (currentLogged.history[currentPlayingId]) {
                     delete currentLogged.history[currentPlayingId];
                     await fetch(`${DB}/${currentLogged.id}/history.json`, { method: 'PUT', body: JSON.stringify(currentLogged.history) });
@@ -473,13 +544,7 @@
 
         async function resetarTelas(id) {
             if(confirm("Deseja desconectar todos os aparelhos?")) {
-                await fetch(`${DB}/${id}.json`, { 
-                    method: 'PATCH', 
-                    body: JSON.stringify({ 
-                        active_devices: [],
-                        online_count: 0 
-                    }) 
-                });
+                await fetch(`${DB}/${id}.json`, { method: 'PATCH', body: JSON.stringify({ active_devices: [], online_count: 0 }) });
                 alert("Telas liberadas!");
                 abrirADM();
             }
@@ -492,13 +557,7 @@
                     const res = await fetch(`${DB}/${currentLogged.id}.json`).then(r => r.json());
                     let aparelhos = (res && Array.isArray(res.active_devices)) ? res.active_devices : [];
                     aparelhos = aparelhos.filter(id => id !== deviceId);
-                    await fetch(`${DB}/${currentLogged.id}.json`, { 
-                        method: 'PATCH', 
-                        body: JSON.stringify({ 
-                            active_devices: aparelhos,
-                            online_count: aparelhos.length 
-                        }) 
-                    });
+                    await fetch(`${DB}/${currentLogged.id}.json`, { method: 'PATCH', body: JSON.stringify({ active_devices: aparelhos, online_count: aparelhos.length }) });
                 } catch(e) {}
             }
             localStorage.removeItem('clone_creds'); 
