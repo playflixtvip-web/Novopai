@@ -16,7 +16,8 @@
         .welcome-center b { color: var(--red); }
         .welcome-center span { color: var(--yellow); font-weight: bold; }
         .nav-btns { display: flex; gap: 10px; }
-        .btn-logout { background: none; border: 1px solid #444; color: #aaa; padding: 5px 10px; border-radius: 4px; font-size: 10px; cursor: pointer; }
+        .btn-nav { background: none; border: 1px solid #444; color: #aaa; padding: 5px 10px; border-radius: 4px; font-size: 10px; cursor: pointer; }
+        .btn-logout { border-color: #444; }
         .search-container { padding: 5px 15px 10px 15px; }
         .search-input { width: 100%; padding: 10px; background: #111; border: 1px solid #333; color: #fff; border-radius: 5px; box-sizing: border-box; }
         .secao-container { display: flex; gap: 8px; padding: 10px 12px 15px 12px; overflow-x: auto; scrollbar-width: none; background: var(--bg); }
@@ -44,42 +45,16 @@
         #player-box { display: none; position: fixed; inset: 0; background: #000; z-index: 2000; }
         
         /* ESTILOS DOS BOTÕES DE PULAR */
-        .vjs-custom-jump-container {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            display: flex;
-            gap: 60px;
-            z-index: 10;
-            pointer-events: none;
-            width: 100%;
-            justify-content: center;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
+        .vjs-custom-jump-container { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; gap: 60px; z-index: 10; pointer-events: none; width: 100%; justify-content: center; opacity: 0; transition: opacity 0.3s; }
         .vjs-user-active .vjs-custom-jump-container { opacity: 1; }
-        .jump-btn-inner {
-            pointer-events: auto;
-            background: rgba(0,0,0,0.6);
-            border: 2px solid rgba(255,255,255,0.2);
-            color: #fff;
-            width: 65px;
-            height: 65px;
-            border-radius: 50%;
-            cursor: pointer;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            font-weight: bold;
-        }
+        .jump-btn-inner { pointer-events: auto; background: rgba(0,0,0,0.6); border: 2px solid rgba(255,255,255,0.2); color: #fff; width: 65px; height: 65px; border-radius: 50%; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; }
         .jump-btn-inner:active { transform: scale(0.9); background: var(--red); }
         .jump-btn-inner span { font-size: 24px; }
-
         .ep-item { padding: 15px; border-bottom: 1px solid #222; text-align: left; background: #111; margin-bottom: 5px; border-radius: 5px; cursor: pointer; }
         .ep-item.highlight { border-left: 4px solid var(--red); background: #1a0a0a; }
+
+        .config-section { background: #111; padding: 20px; border-radius: 10px; border: 1px solid #333; margin-bottom: 15px; }
+        .btn-danger { background: #c0392b; color: white; border: none; padding: 10px; border-radius: 5px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -102,8 +77,9 @@
                 <div class="header-top">
                     <div class="logo">CLONEFLIX</div>
                     <div class="nav-btns">
+                        <button onclick="abrirConfig()" class="btn-nav">⚙️ CONFIG</button>
                         <button onclick="abrirADM()" id="adm-btn" style="display:none; background:var(--red); border:none; color:#fff; padding:5px 10px; border-radius:4px; font-size:10px; font-weight:bold;">ADM</button>
-                        <button onclick="logout()" class="btn-logout">SAIR</button>
+                        <button onclick="logout()" class="btn-nav btn-logout">SAIR</button>
                     </div>
                 </div>
                 <div id="welcome-msg" class="welcome-center"></div>
@@ -119,6 +95,28 @@
             </div>
         </div>
         <div id="conteudo-principal"></div>
+    </div>
+
+    <!-- MODAL DE CONFIGURAÇÕES -->
+    <div id="modal-config" class="modal">
+        <span class="close-modal" onclick="fecharModais()">✕</span>
+        <div style="max-width: 400px; margin: 50px auto;">
+            <h3 style="color:var(--red); text-align:center;">CONFIGURAÇÕES</h3>
+            
+            <div class="config-section">
+                <h4 style="margin-top:0">Alterar Senha</h4>
+                <input type="password" id="cfg-pass-atual" placeholder="Senha Atual" class="input-adm">
+                <input type="password" id="cfg-pass-nova" placeholder="Nova Senha" class="input-adm">
+                <input type="password" id="cfg-pass-conf" placeholder="Confirmar Nova Senha" class="input-adm">
+                <button onclick="redefinirSenha()" style="width:100%; padding:10px; background:var(--red); color:#fff; border:none; border-radius:5px; font-weight:bold;">ATUALIZAR SENHA</button>
+            </div>
+
+            <div class="config-section">
+                <h4 style="margin-top:0">Privacidade</h4>
+                <p style="font-size:11px; color:#aaa;">Isso removerá todos os itens da fileira "Continuar Assistindo".</p>
+                <button onclick="limparHistorico()" class="btn-danger">LIMPAR HISTÓRICO DE FILMES/SÉRIES</button>
+            </div>
+        </div>
     </div>
 
     <div id="modal-adm" class="modal">
@@ -144,7 +142,6 @@
     </div>
 
     <div id="modal-detalhes" class="modal"><span class="close-modal" onclick="fecharModais()">✕</span><div id="detalhes-body" style="text-align:center; max-width:500px; margin:40px auto; padding-bottom:50px;"></div></div>
-    
     <div id="modal-escolha-ep" class="modal" style="z-index: 1100; background: rgba(0,0,0,0.95);"><span class="close-modal" onclick="fecharModalEscolha()">✕</span><div id="escolha-body" style="text-align:center; margin-top:30vh; padding:20px;"></div></div>
 
     <div id="player-box">
@@ -156,12 +153,9 @@
     <script>
         const FIREBASE = "https://cloneflix-oficial-default-rtdb.firebaseio.com";
         const DB = `${FIREBASE}/usuarios`;
-        
         var API = { url: "http://lunnabr1.site", u: "35215954", p: "54642513" }; 
-        
         var player = videojs('vid');
 
-        // INJEÇÃO DOS BOTÕES NO PLAYER
         const jumpContainer = document.createElement('div');
         jumpContainer.className = 'vjs-custom-jump-container';
         jumpContainer.id = 'jump-btns-ui';
@@ -171,16 +165,10 @@
         `;
         player.el().appendChild(jumpContainer);
 
-        var fullData = {}; 
-        var cacheCategorias = {}; 
-        var currentLogged = {}; var secaoAtual = 'live'; var saveInterval = null;
-        var relogioInterval = null;
-        var wakeLock = null; 
-        var currentPlayingId = null;
-        var currentPlayingType = null;
-        var currentSeriesParent = null;
-        var currentSeason = null;
-        var monitorSessaoInterval = null;
+        var fullData = {}; var cacheCategorias = {}; var currentLogged = {}; var secaoAtual = 'live'; 
+        var saveInterval = null; var relogioInterval = null; var wakeLock = null; 
+        var currentPlayingId = null; var currentPlayingType = null; var currentSeriesParent = null;
+        var currentSeason = null; var monitorSessaoInterval = null;
 
         function obterDeviceId() {
             let id = localStorage.getItem('clone_device_id');
@@ -202,13 +190,8 @@
             }
         };
 
-        async function solicitarWakeLock() {
-            try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
-        }
-
-        function liberarWakeLock() {
-            if (wakeLock !== null) { wakeLock.release().then(() => { wakeLock = null; }); }
-        }
+        async function solicitarWakeLock() { try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {} }
+        function liberarWakeLock() { if (wakeLock !== null) { wakeLock.release().then(() => { wakeLock = null; }); } }
 
         async function carregarConfigServidor() {
             try {
@@ -223,15 +206,10 @@
         }
 
         async function salvarConfigServidor() {
-            const novaConfig = {
-                url: document.getElementById('adm-url').value,
-                u: document.getElementById('adm-u').value,
-                p: document.getElementById('adm-p').value
-            };
+            const novaConfig = { url: document.getElementById('adm-url').value, u: document.getElementById('adm-u').value, p: document.getElementById('adm-p').value };
             await fetch(`${FIREBASE}/config/server.json`, { method: 'PUT', body: JSON.stringify(novaConfig) });
             API = novaConfig;
-            fullData = {};
-            cacheCategorias = {};
+            fullData = {}; cacheCategorias = {};
             alert("Configurações do Servidor atualizadas!");
         }
 
@@ -240,9 +218,7 @@
             const p = document.getElementById('pass').value.trim();
             const statusDiv = document.getElementById('login-status');
             const deviceId = obterDeviceId();
-
             if(!u || !p) return;
-
             statusDiv.innerText = "Verificando...";
             try {
                 const res = await fetch(`${DB}.json`).then(r => r.json());
@@ -251,11 +227,8 @@
                     const user = res[id];
                     if(user.user === u && user.pass === p) {
                         found = true;
-
                         if(user.role === 'admin') {
-                            currentLogged = user;
-                            currentLogged.adm = true;
-                            currentLogged.id = id;
+                            currentLogged = user; currentLogged.adm = true; currentLogged.id = id;
                         } else {
                             if(user.status === 'bloqueado' || user.status === 'suspenso') {
                                 statusDiv.innerText = "ACESSO BLOQUEADO!";
@@ -265,7 +238,6 @@
                                 statusDiv.innerText = "ACESSO VENCIDO!";
                                 return alert("Seu acesso VENCEU!");
                             }
-
                             let aparelhos = Array.isArray(user.active_devices) ? user.active_devices : [];
                             if (!aparelhos.includes(deviceId)) {
                                 if (aparelhos.length >= (user.screens || 1)) {
@@ -273,16 +245,10 @@
                                     return alert("Limite de telas atingido!");
                                 }
                                 aparelhos.push(deviceId);
-                                await fetch(`${DB}/${id}.json`, { 
-                                    method: 'PATCH', 
-                                    body: JSON.stringify({ active_devices: aparelhos, online_count: aparelhos.length }) 
-                                });
+                                await fetch(`${DB}/${id}.json`, { method: 'PATCH', body: JSON.stringify({ active_devices: aparelhos, online_count: aparelhos.length }) });
                             }
-                            currentLogged = user; 
-                            currentLogged.id = id;
-                            currentLogged.active_devices = aparelhos;
+                            currentLogged = user; currentLogged.id = id; currentLogged.active_devices = aparelhos;
                         }
-                        
                         localStorage.setItem('clone_creds', JSON.stringify({u, p}));
                         entrar(); break;
                     }
@@ -296,14 +262,11 @@
             document.getElementById('app-ui').style.display='block'; 
             if(currentLogged.adm) document.getElementById('adm-btn').style.display='block';
             const venc = currentLogged.role === 'admin' ? "VITALÍCIO" : (currentLogged.expira ? new Date(currentLogged.expira).toLocaleDateString() : "Vitalício");
-            
             if(relogioInterval) clearInterval(relogioInterval);
             atualizarRelogio(venc);
             relogioInterval = setInterval(() => atualizarRelogio(venc), 1000);
-
             if(monitorSessaoInterval) clearInterval(monitorSessaoInterval);
             monitorSessaoInterval = setInterval(verificarSessaoAtiva, 20000);
-
             mudarSecao('live'); 
         }
 
@@ -318,10 +281,7 @@
             } catch (e) {}
         }
 
-        function forceLogout() {
-            localStorage.removeItem('clone_creds');
-            location.reload();
-        }
+        function forceLogout() { localStorage.removeItem('clone_creds'); location.reload(); }
 
         function atualizarRelogio(vencimento) {
             const agora = new Date();
@@ -335,12 +295,7 @@
         async function mudarSecao(tipo, btn) {
             secaoAtual = tipo;
             if(btn) { document.querySelectorAll('.btn-secao').forEach(b => b.classList.remove('active')); btn.classList.add('active'); }
-            
-            if(fullData[tipo] && cacheCategorias[tipo]) {
-                renderizar(cacheCategorias[tipo], fullData[tipo], tipo);
-                return;
-            }
-
+            if(fullData[tipo] && cacheCategorias[tipo]) { renderizar(cacheCategorias[tipo], fullData[tipo], tipo); return; }
             const principal = document.getElementById('conteudo-principal');
             principal.innerHTML = '<p style="text-align:center;padding:30px;color:var(--red);">Carregando biblioteca...</p>';
             const catAct = tipo==='live'?'get_live_categories':tipo==='movie'?'get_vod_categories':'get_series_categories';
@@ -348,10 +303,7 @@
             try {
                 const cats = await fetch(`${API.url}/player_api.php?username=${API.u}&password=${API.p}&action=${catAct}`).then(r => r.json());
                 const streams = await fetch(`${API.url}/player_api.php?username=${API.u}&password=${API.p}&action=${streamAct}`).then(r => r.json());
-                
-                fullData[tipo] = streams; 
-                cacheCategorias[tipo] = cats;
-                
+                fullData[tipo] = streams; cacheCategorias[tipo] = cats;
                 renderizar(cats, streams, tipo);
             } catch(e) { principal.innerHTML = '<p style="text-align:center;">Erro ao carregar IPTV.</p>'; }
         }
@@ -366,14 +318,10 @@
             }
             if(continueWatching.length > 0) {
                 html += `<div class="row">
-                    <div class="row-header">
-                        <span class="row-title" style="color:var(--yellow)">CONTINUAR ASSISTINDO</span>
-                        <button class="btn-ver-mais" onclick="verMaisHistorico('${tipo}')">VER MAIS</button>
-                    </div>
+                    <div class="row-header"><span class="row-title" style="color:var(--yellow)">CONTINUAR ASSISTINDO</span><button class="btn-ver-mais" onclick="verMaisHistorico('${tipo}')">VER MAIS</button></div>
                     <div class="shelf">${continueWatching.slice(0, 8).map(i => cardHtml(i, tipo)).join('')}</div>
                 </div>`;
             }
-
             cats.forEach(cat => {
                 const itens = streams.filter(s => s.category_id === cat.category_id);
                 if(itens.length > 0) html += `<div class="row"><div class="row-header"><span class="row-title">${cat.category_name}</span><button class="btn-ver-mais" onclick="verMais('${cat.category_id}', '${cat.category_name}')">VER MAIS</button></div><div class="shelf">${itens.slice(0, 8).map(i => cardHtml(i, tipo)).join('')}</div></div>`;
@@ -382,9 +330,7 @@
         }
 
         function verMaisHistorico(tipo) {
-            const streams = fullData[tipo];
-            const history = currentLogged.history || {};
-            const continueWatching = [];
+            const streams = fullData[tipo]; const history = currentLogged.history || {}; const continueWatching = [];
             for(let id in history) {
                 if(history[id].tipo === tipo) {
                     let item = (tipo === 'series') ? streams.find(s => String(s.series_id) === String(history[id].seriesParentId)) : streams.find(s => String(s.stream_id) === id);
@@ -425,19 +371,14 @@
                 window.tempEps = res.episodes;
                 const hist = Object.values(currentLogged.history || {}).find(h => String(h.seriesParentId) === id);
                 const lastS = hist ? hist.season : Object.keys(res.episodes)[0];
-                html += `<select id="season-select" class="input-adm" onchange="carregarEps(this.value, '${id}')">
-                    ${Object.keys(res.episodes).map(s => `<option value="${s}" ${s==lastS?'selected':''}>Temporada ${s}</option>`).join('')}
-                </select><div id="eps-box" style="margin-top:10px; max-height:300px; overflow-y:auto;"></div>`; 
+                html += `<select id="season-select" class="input-adm" onchange="carregarEps(this.value, '${id}')">${Object.keys(res.episodes).map(s => `<option value="${s}" ${s==lastS?'selected':''}>Temporada ${s}</option>`).join('')}</select><div id="eps-box" style="margin-top:10px; max-height:300px; overflow-y:auto;"></div>`; 
                 setTimeout(() => carregarEps(lastS, id), 100);
             } else {
-                const hist = (currentLogged.history || {})[id];
-                const ext = info.container_extension || 'mp4';
+                const hist = (currentLogged.history || {})[id]; const ext = info.container_extension || 'mp4';
                 if(hist) {
                     html += `<button onclick="play('${id}','${ext}','movie', ${hist.time})" style="width:90%; padding:15px; background:var(--red); color:#fff; border:none; font-weight:bold; border-radius:5px; margin-bottom:10px;">RETOMAR EM ${Math.floor(hist.time/60)}m</button>
                              <button onclick="play('${id}','${ext}','movie', 0)" style="width:90%; padding:10px; background:#333; color:#fff; border:none; border-radius:5px;">DO INÍCIO</button>`;
-                } else {
-                    html += `<button onclick="play('${id}','${ext}','movie')" style="width:90%; padding:15px; background:var(--red); color:#fff; border:none; font-weight:bold; border-radius:5px;">ASSISTIR AGORA</button>`;
-                }
+                } else { html += `<button onclick="play('${id}','${ext}','movie')" style="width:90%; padding:15px; background:var(--red); color:#fff; border:none; font-weight:bold; border-radius:5px;">ASSISTIR AGORA</button>`; }
             } 
             document.getElementById('detalhes-body').innerHTML = html; document.getElementById('modal-detalhes').style.display = 'block'; 
         }
@@ -445,8 +386,7 @@
         function carregarEps(s, seriesId) { 
             if(!s || !window.tempEps[s]) return; 
             document.getElementById('eps-box').innerHTML = window.tempEps[s].map(e => {
-                const epId = String(e.id || e.stream_id);
-                const hist = (currentLogged.history || {})[epId];
+                const epId = String(e.id || e.stream_id); const hist = (currentLogged.history || {})[epId];
                 return `<div class="ep-item ${hist?'highlight':''}" onclick="prepararEp('${epId}','${e.container_extension||'mp4'}','${seriesId}','${s}','${e.title.replace(/'/g, "")}')">
                     <span style="font-size:12px; font-weight:bold;">E${e.episode_num} - ${e.title}</span>
                     ${hist ? `<br><span style="font-size:9px; color:var(--yellow)">PAROU EM ${Math.floor(hist.time/60)}m</span>` : ''}
@@ -469,120 +409,101 @@
         async function play(id, ext, tipo, startTime = 0, seriesParentId = null, seasonNum = null) {
             currentPlayingId = id; currentPlayingType = tipo; currentSeriesParent = seriesParentId; currentSeason = seasonNum;
             let url = (tipo === 'live') ? `${API.url}/live/${API.u}/${API.p}/${id}.m3u8` : (tipo === 'movie') ? `${API.url}/movie/${API.u}/${API.p}/${id}.${ext||'mp4'}` : `${API.url}/series/${API.u}/${API.p}/${id}.${ext||'mp4'}`;
-            
-            // MOSTRAR/ESCONDER BOTÕES DE PULAR SE FOR LIVE
             document.getElementById('jump-btns-ui').style.visibility = (tipo === 'live') ? 'hidden' : 'visible';
-
             await solicitarWakeLock();
             document.getElementById('player-box').style.display = 'block';
             player.src({ src: url, type: tipo==='live'?'application/x-mpegURL':'video/mp4' });
-            
-            player.ready(() => { 
-                if(startTime > 0) player.currentTime(startTime); 
-                player.play(); 
-                if(tipo !== 'live') {
-                    if(saveInterval) clearInterval(saveInterval);
-                    saveInterval = setInterval(() => salvarProgressoFirebase(), 8000);
-                }
-            });
+            player.ready(() => { if(startTime > 0) player.currentTime(startTime); player.play(); if(tipo !== 'live') { if(saveInterval) clearInterval(saveInterval); saveInterval = setInterval(() => salvarProgressoFirebase(), 8000); } });
         }
 
-        // FUNÇÃO DE PULAR TEMPO
-        function pularTempo(segundos) {
-            if(!player) return;
-            let tempoAtual = player.currentTime();
-            player.currentTime(tempoAtual + segundos);
-            player.userActive(true); // Mantém controles visíveis
-        }
+        function pularTempo(segundos) { if(!player) return; player.currentTime(player.currentTime() + segundos); player.userActive(true); }
 
         async function salvarProgressoFirebase() {
             if(!currentPlayingId || currentPlayingType === 'live') return;
-            const time = Math.floor(player.currentTime());
-            const duration = player.duration();
+            const time = Math.floor(player.currentTime()); const duration = player.duration();
             if(!duration || isNaN(duration)) return;
             if(!currentLogged.history) currentLogged.history = {};
             const percent = (time / duration) * 100;
-
-            if (time < 10 || percent >= 90) {
-                if (currentLogged.history[currentPlayingId]) {
-                    delete currentLogged.history[currentPlayingId];
-                    await fetch(`${DB}/${currentLogged.id}/history.json`, { method: 'PUT', body: JSON.stringify(currentLogged.history) });
-                }
+            if (time < 10 || percent >= 95) {
+                if (currentLogged.history[currentPlayingId]) { delete currentLogged.history[currentPlayingId]; await fetch(`${DB}/${currentLogged.id}/history.json`, { method: 'PUT', body: JSON.stringify(currentLogged.history) }); }
             } else {
                 currentLogged.history[currentPlayingId] = { time, tipo: currentPlayingType, seriesParentId: currentSeriesParent, season: currentSeason };
                 await fetch(`${DB}/${currentLogged.id}/history.json`, { method: 'PUT', body: JSON.stringify(currentLogged.history) });
             }
         }
 
-        async function fecharPlayer() { 
-            if(currentPlayingType !== 'live') await salvarProgressoFirebase();
-            if(saveInterval) clearInterval(saveInterval);
-            player.pause(); 
-            liberarWakeLock();
-            document.getElementById('player-box').style.display='none'; 
-            mudarSecao(secaoAtual);
+        async function fecharPlayer() { if(currentPlayingType !== 'live') await salvarProgressoFirebase(); if(saveInterval) clearInterval(saveInterval); player.pause(); liberarWakeLock(); document.getElementById('player-box').style.display='none'; mudarSecao(secaoAtual); }
+
+        // --- NOVAS FUNÇÕES DE CONFIGURAÇÃO ---
+        function abrirConfig() { document.getElementById('modal-config').style.display = 'block'; }
+
+        async function redefinirSenha() {
+            const atual = document.getElementById('cfg-pass-atual').value;
+            const nova = document.getElementById('cfg-pass-nova').value;
+            const conf = document.getElementById('cfg-pass-conf').value;
+
+            if(!atual || !nova || !conf) return alert("Preencha todos os campos!");
+            if(atual !== currentLogged.pass) return alert("Senha atual incorreta!");
+            if(nova !== conf) return alert("A nova senha e a confirmação não conferem!");
+            if(nova.length < 4) return alert("A senha deve ter pelo menos 4 caracteres!");
+
+            try {
+                await fetch(`${DB}/${currentLogged.id}.json`, { method: 'PATCH', body: JSON.stringify({ pass: nova }) });
+                currentLogged.pass = nova;
+                localStorage.setItem('clone_creds', JSON.stringify({u: currentLogged.user, p: nova}));
+                alert("Senha alterada com sucesso!");
+                fecharModais();
+            } catch(e) { alert("Erro ao atualizar senha."); }
         }
+
+        async function limparHistorico() {
+            if(!confirm("Deseja realmente limpar todo o histórico de 'Continuar Assistindo'?")) return;
+            try {
+                await fetch(`${DB}/${currentLogged.id}/history.json`, { method: 'DELETE' });
+                currentLogged.history = {};
+                alert("Histórico limpo!");
+                fecharModais();
+                mudarSecao(secaoAtual);
+            } catch(e) { alert("Erro ao limpar histórico."); }
+        }
+        // -------------------------------------
 
         async function abrirADM() {
             document.getElementById('modal-adm').style.display = 'block';
             const res = await fetch(`${DB}.json`).then(r => r.json());
             let html = "";
             for(let id in res) {
-                const u = res[id];
-                const ativos = Array.isArray(u.active_devices) ? u.active_devices.length : 0;
-                html += `<div class="user-card">
-                    <b>${u.user} (${u.pass})</b> <span style="float:right; color:${u.status==='bloqueado'?'red':'green'}">${u.status||'ativo'}</span><br>
-                    Telas: ${ativos}/${u.screens||1} | Vence: ${u.expira?new Date(u.expira).toLocaleDateString():'N/A'}<br><br>
-                    <button class="btn-adm" style="background:#2980b9" onclick="prepararEdicao('${id}','${u.user}','${u.pass}','${u.screens}','${u.expira}')">Editar</button>
-                    <button class="btn-adm" style="background:#8e44ad" onclick="resetarTelas('${id}')">Reset Telas</button>
-                    <button class="btn-adm" style="background:#d35400" onclick="toggleStatus('${id}','${u.status}')">Bloq/Lib</button>
-                    <button class="btn-adm" style="background:#c0392b" onclick="excluirUser('${id}')">Excluir</button>
-                </div>`;
+                const u = res[id]; const ativos = Array.isArray(u.active_devices) ? u.active_devices.length : 0;
+                html += `<div class="user-card"><b>${u.user} (${u.pass})</b> <span style="float:right; color:${u.status==='bloqueado'?'red':'green'}">${u.status||'ativo'}</span><br>Telas: ${ativos}/${u.screens||1} | Vence: ${u.expira?new Date(u.expira).toLocaleDateString():'N/A'}<br><br><button class="btn-adm" style="background:#2980b9" onclick="prepararEdicao('${id}','${u.user}','${u.pass}','${u.screens}','${u.expira}')">Editar</button><button class="btn-adm" style="background:#8e44ad" onclick="resetarTelas('${id}')">Reset Telas</button><button class="btn-adm" style="background:#d35400" onclick="toggleStatus('${id}','${u.status}')">Bloq/Lib</button><button class="btn-adm" style="background:#c0392b" onclick="excluirUser('${id}')">Excluir</button></div>`;
             }
             document.getElementById('lista-usuarios-adm').innerHTML = html;
         }
 
-        async function resetarTelas(id) {
-            if(confirm("Deseja desconectar todos os aparelhos?")) {
-                await fetch(`${DB}/${id}.json`, { method: 'PATCH', body: JSON.stringify({ active_devices: [], online_count: 0 }) });
-                alert("Telas liberadas!");
-                abrirADM();
-            }
-        }
+        async function resetarTelas(id) { if(confirm("Deseja desconectar todos os aparelhos?")) { await fetch(`${DB}/${id}.json`, { method: 'PATCH', body: JSON.stringify({ active_devices: [], online_count: 0 }) }); alert("Telas liberadas!"); abrirADM(); } }
 
         async function logout() {
             if (currentLogged && currentLogged.role !== "admin") {
                 try {
-                    const deviceId = obterDeviceId();
-                    const res = await fetch(`${DB}/${currentLogged.id}.json`).then(r => r.json());
+                    const deviceId = obterDeviceId(); const res = await fetch(`${DB}/${currentLogged.id}.json`).then(r => r.json());
                     let aparelhos = (res && Array.isArray(res.active_devices)) ? res.active_devices : [];
                     aparelhos = aparelhos.filter(id => id !== deviceId);
                     await fetch(`${DB}/${currentLogged.id}.json`, { method: 'PATCH', body: JSON.stringify({ active_devices: aparelhos, online_count: aparelhos.length }) });
                 } catch(e) {}
             }
-            localStorage.removeItem('clone_creds'); 
-            location.reload(); 
+            localStorage.removeItem('clone_creds'); location.reload(); 
         }
 
         async function salvarUsuario() {
-            const id = document.getElementById('edit-id').value;
-            const days = parseInt(document.getElementById('new-days').value) || 0;
+            const id = document.getElementById('edit-id').value; const days = parseInt(document.getElementById('new-days').value) || 0;
             const expFinal = days > 0 ? Date.now() + (days * 86400000) : (id ? parseInt(document.getElementById('old-exp').value) : Date.now() + (30 * 86400000));
-            const user = { 
-                user: document.getElementById('new-u').value, pass: document.getElementById('new-p').value, 
-                screens: parseInt(document.getElementById('new-screens').value) || 1, expira: expFinal, status: 'ativo', role: 'client'
-            };
+            const user = { user: document.getElementById('new-u').value, pass: document.getElementById('new-p').value, screens: parseInt(document.getElementById('new-screens').value) || 1, expira: expFinal, status: 'ativo', role: 'client' };
             await fetch(id ? `${DB}/${id}.json` : `${DB}.json`, { method: id?'PATCH':'POST', body: JSON.stringify(user) });
             limparFormADM(); abrirADM();
         }
 
         async function toggleStatus(id, s) { await fetch(`${DB}/${id}.json`, { method: 'PATCH', body: JSON.stringify({ status: s==='bloqueado'?'ativo':'bloqueado' }) }); abrirADM(); }
         async function excluirUser(id) { if(confirm("Excluir?")) { await fetch(`${DB}/${id}.json`, { method: 'DELETE' }); abrirADM(); } }
-        function prepararEdicao(id, u, p, s, exp) { 
-            document.getElementById('edit-id').value = id; document.getElementById('new-u').value = u; 
-            document.getElementById('new-p').value = p; document.getElementById('new-screens').value = s; 
-            document.getElementById('old-exp').value = exp; document.getElementById('btn-save-adm').innerText = "ATUALIZAR";
-        }
+        function prepararEdicao(id, u, p, s, exp) { document.getElementById('edit-id').value = id; document.getElementById('new-u').value = u; document.getElementById('new-p').value = p; document.getElementById('new-screens').value = s; document.getElementById('old-exp').value = exp; document.getElementById('btn-save-adm').innerText = "ATUALIZAR"; }
         function limparFormADM() { document.getElementById('edit-id').value = ""; document.getElementById('new-u').value = ""; document.getElementById('new-p').value = ""; document.getElementById('btn-save-adm').innerText = "SALVAR CLIENTE"; }
         function executarBusca(q) { if(!q) return mudarSecao(secaoAtual); const res = fullData[secaoAtual].filter(i => i.name.toLowerCase().includes(q.toLowerCase())).slice(0, 40); document.getElementById('conteudo-principal').innerHTML = `<div class="grid-view">${res.map(i => cardHtml(i, secaoAtual)).join('')}</div>`; }
         async function toggleFav(event, id, tipo, name, img) { event.stopPropagation(); let f = currentLogged.favs || []; const idx = f.findIndex(x => x.id === String(id)); if(idx > -1) { f.splice(idx, 1); event.target.classList.remove('active'); } else { f.push({id: String(id), tipo, name, img}); event.target.classList.add('active'); } currentLogged.favs = f; await fetch(`${DB}/${currentLogged.id}/favs.json`, { method: 'PUT', body: JSON.stringify(f) }); }
