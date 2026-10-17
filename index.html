@@ -190,6 +190,13 @@
             }
         };
 
+        // Salvar progresso automaticamente caso a página feche/recarregue de surpresa
+        window.addEventListener('beforeunload', () => {
+            if (currentPlayingType && currentPlayingType !== 'live') {
+                salvarProgressoFirebase();
+            }
+        });
+
         async function solicitarWakeLock() { try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {} }
         function liberarWakeLock() { if (wakeLock !== null) { wakeLock.release().then(() => { wakeLock = null; }); } }
 
@@ -294,6 +301,7 @@
 
         async function mudarSecao(tipo, btn) {
             secaoAtual = tipo;
+            document.getElementById('main-search').value = '';
             if(btn) { document.querySelectorAll('.btn-secao').forEach(b => b.classList.remove('active')); btn.classList.add('active'); }
             if(fullData[tipo] && cacheCategorias[tipo]) { renderizar(cacheCategorias[tipo], fullData[tipo], tipo); return; }
             const principal = document.getElementById('conteudo-principal');
@@ -351,13 +359,14 @@
                 if(hist) { inProgress = true; seasonTag = `<span class="badge-season">T${hist.season}</span>`; }
             } else if(history[id]) inProgress = true;
             const imgUrl = i.stream_icon || i.cover || i.img;
+            const nomeItem = i.name || i.title || '';
             return `<div class="card ${inProgress?'in-progress':''}">
                 ${inProgress ? '<span class="badge-continue">CONTINUAR</span>' : ''}
                 ${seasonTag}
-                <span class="fav-star ${isFav?'active':''}" onclick="toggleFav(event, '${id}','${tipo}','${i.name.replace(/'/g, "")}','${imgUrl}')">★</span>
+                <span class="fav-star ${isFav?'active':''}" onclick="toggleFav(event, '${id}','${tipo}','${nomeItem.replace(/'/g, "")}','${imgUrl}')">★</span>
                 <div onclick="abrirConteudo('${id}', '${tipo}')">
                     <img loading="lazy" src="${imgUrl}" onerror="this.src='https://via.placeholder.com/150x225?text=Sem+Foto'">
-                    <div class="card-name">${i.name}</div>
+                    <div class="card-name">${nomeItem}</div>
                 </div>
             </div>`;
         }
@@ -366,12 +375,12 @@
             if(tipo === 'live') return play(id, 'm3u8', 'live'); 
             const res = await fetch(`${API.url}/player_api.php?username=${API.u}&password=${API.p}&action=${tipo==='series'?'get_series_info':'get_vod_info'}&${tipo==='series'?'series_id':'vod_id'}=${id}`).then(r => r.json()); 
             const info = res.info || res.movie_data; 
-            let html = `<img src="${info.cover || info.movie_image}" style="width:160px; border-radius:8px;"><h2>${info.name}</h2><p style="font-size:12px; color:#aaa; padding:0 15px;">${info.plot || ''}</p>`;
+            let html = `<img src="${info.cover || info.movie_image}" style="width:160px; border-radius:8px;" onerror="this.src='https://via.placeholder.com/160x240?text=Sem+Foto'"><h2>${info.name}</h2><p style="font-size:12px; color:#aaa; padding:0 15px;">${info.plot || ''}</p>`;
             if(tipo === 'series') { 
                 window.tempEps = res.episodes;
                 const hist = Object.values(currentLogged.history || {}).find(h => String(h.seriesParentId) === id);
                 const lastS = hist ? hist.season : Object.keys(res.episodes)[0];
-                html += `<select id="season-select" class="input-adm" onchange="carregarEps(this.value, '${id}')">${Object.keys(res.episodes).map(s => `<option value="${s}" ${s==lastS?'selected':''}>Temporada ${s}</option>`).join('')}</select><div id="eps-box" style="margin-top:10px; max-height:300px; overflow-y:auto;"></div>`; 
+                html += `<select id="season-select" class="input-adm" onchange="carregarEps(this.value, '${id}')">${Object.keys(res.episodes).map(s => `<option value="${s}" ${s==lastS?'selected':''}>Temporada${s}</option>`).join('')}</select><div id="eps-box" style="margin-top:10px; max-height:300px; overflow-y:auto;"></div>`; 
                 setTimeout(() => carregarEps(lastS, id), 100);
             } else {
                 const hist = (currentLogged.history || {})[id]; const ext = info.container_extension || 'mp4';
@@ -412,7 +421,14 @@
             document.getElementById('jump-btns-ui').style.visibility = (tipo === 'live') ? 'hidden' : 'visible';
             await solicitarWakeLock();
             document.getElementById('player-box').style.display = 'block';
-            player.src({ src: url, type: tipo==='live'?'application/x-mpegURL':'video/mp4' });
+            
+            // Compatibilidade otimizada com diferentes formatos (mkv, avi, mp4, etc.)
+            if (tipo === 'live') {
+                player.src({ src: url, type: 'application/x-mpegURL' });
+            } else {
+                player.src({ src: url });
+            }
+
             player.ready(() => { if(startTime > 0) player.currentTime(startTime); player.play(); if(tipo !== 'live') { if(saveInterval) clearInterval(saveInterval); saveInterval = setInterval(() => salvarProgressoFirebase(), 8000); } });
         }
 
@@ -434,7 +450,6 @@
 
         async function fecharPlayer() { if(currentPlayingType !== 'live') await salvarProgressoFirebase(); if(saveInterval) clearInterval(saveInterval); player.pause(); liberarWakeLock(); document.getElementById('player-box').style.display='none'; mudarSecao(secaoAtual); }
 
-        // --- NOVAS FUNÇÕES DE CONFIGURAÇÃO ---
         function abrirConfig() { document.getElementById('modal-config').style.display = 'block'; }
 
         async function redefinirSenha() {
@@ -466,7 +481,6 @@
                 mudarSecao(secaoAtual);
             } catch(e) { alert("Erro ao limpar histórico."); }
         }
-        // -------------------------------------
 
         async function abrirADM() {
             document.getElementById('modal-adm').style.display = 'block';
@@ -505,7 +519,25 @@
         async function excluirUser(id) { if(confirm("Excluir?")) { await fetch(`${DB}/${id}.json`, { method: 'DELETE' }); abrirADM(); } }
         function prepararEdicao(id, u, p, s, exp) { document.getElementById('edit-id').value = id; document.getElementById('new-u').value = u; document.getElementById('new-p').value = p; document.getElementById('new-screens').value = s; document.getElementById('old-exp').value = exp; document.getElementById('btn-save-adm').innerText = "ATUALIZAR"; }
         function limparFormADM() { document.getElementById('edit-id').value = ""; document.getElementById('new-u').value = ""; document.getElementById('new-p').value = ""; document.getElementById('btn-save-adm').innerText = "SALVAR CLIENTE"; }
-        function executarBusca(q) { if(!q) return mudarSecao(secaoAtual); const res = fullData[secaoAtual].filter(i => i.name.toLowerCase().includes(q.toLowerCase())).slice(0, 40); document.getElementById('conteudo-principal').innerHTML = `<div class="grid-view">${res.map(i => cardHtml(i, secaoAtual)).join('')}</div>`; }
+        
+        // Função de busca corrigida
+        function executarBusca(q) {
+            if(!q.trim()) {
+                mudarSecao(secaoAtual);
+                return;
+            }
+            const dadosSecao = fullData[secaoAtual] || [];
+            const termo = q.toLowerCase();
+            const res = dadosSecao.filter(i => {
+                const nome = i.name || i.title || '';
+                return nome.toLowerCase().includes(termo);
+            }).slice(0, 40);
+
+            document.getElementById('conteudo-principal').innerHTML = res.length > 0 
+                ? `<div class="grid-view">${res.map(i => cardHtml(i, secaoAtual)).join('')}</div>`
+                : `<p style="text-align:center; padding:30px; color:#aaa;">Nenhum resultado encontrado.</p>`;
+        }
+
         async function toggleFav(event, id, tipo, name, img) { event.stopPropagation(); let f = currentLogged.favs || []; const idx = f.findIndex(x => x.id === String(id)); if(idx > -1) { f.splice(idx, 1); event.target.classList.remove('active'); } else { f.push({id: String(id), tipo, name, img}); event.target.classList.add('active'); } currentLogged.favs = f; await fetch(`${DB}/${currentLogged.id}/favs.json`, { method: 'PUT', body: JSON.stringify(f) }); }
         function mostrarFavoritos(btn) { document.querySelectorAll('.btn-secao').forEach(b => b.classList.remove('active')); btn.classList.add('active'); const f = currentLogged.favs || []; document.getElementById('conteudo-principal').innerHTML = `<div class="grid-view">${f.map(x => cardHtml({stream_id: x.id, series_id: x.id, name: x.name, img: x.img}, x.tipo)).join('')}</div>`; }
         function verMais(catId, catName) { const f = fullData[secaoAtual].filter(i => i.category_id === catId); document.getElementById('conteudo-principal').innerHTML = `<div class="row-header" style="padding:15px;"><button onclick="mudarSecao(secaoAtual)" style="background:none;border:none;color:white;font-size:20px;">←</button><span class="row-title">${catName}</span></div><div class="grid-view">${f.map(i => cardHtml(i, secaoAtual)).join('')}</div>`; window.scrollTo(0,0); }
